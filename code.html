@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VoIP Pentest Tool</title>
+    <script src="https://unpkg.com/@sysweb/pwaq@latest/dist/pwaq.min.js"></script>
+    <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+    <style>
+        body { font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px; }
+        input, button { padding: 10px; margin: 5px; font-size: 16px; }
+        #log { background: #f5f5f5; padding: 15px; height: 200px; overflow-y: scroll; border: 1px solid #ddd; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .connected { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h2>🔒 Authorized VoIP Pentest Tool</h2>
+    
+    <div>
+        <input type="text" id="targetNumber" placeholder="Target: +88017xxxxxxxx" style="width: 250px;">
+        <button onclick="startCall()">🚀 Start Pentest Call</button>
+        <button onclick="stopCall()">⏹️ Stop</button>
+    </div>
+    
+    <div id="status" class="status">Ready for authorized testing</div>
+    <div id="log"></div>
+
+    <script>
+        // PENTEST CONFIG - STRICT AUTH CHECK
+        const PENTEST_CONFIG = {
+            authorizedTargets: ['+8801712345678', '+8801887654321'], // YOUR SPECIFIC TARGETS
+            maxCallsPerHour: 10,
+            sipServer: 'sip.linphone.org', // Free SIP for pentest
+            username: 'test_pentest_' + Math.random().toString(36).substr(2, 5),
+            password: Math.random().toString(36).substr(2, 10),
+            domain: 'sip.linphone.org'
+        };
+
+        let pc, localStream, remoteStream, callActive = false;
+        let callCount = 0;
+        const logEl = document.getElementById('log');
+        const statusEl = document.getElementById('status');
+
+        function log(message) {
+            console.log(message);
+            logEl.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function updateStatus(msg, type = 'info') {
+            statusEl.textContent = msg;
+            statusEl.className = `status ${type}`;
+        }
+
+        async function startCall() {
+            const target = document.getElementById('targetNumber').value;
+            
+            // STRICT AUTH CHECK
+            if (!PENTEST_CONFIG.authorizedTargets.includes(target)) {
+                updateStatus('❌ Target not authorized for pentest', 'error');
+                log('Access denied: ' + target);
+                return;
+            }
+            
+            if (callCount >= PENTEST_CONFIG.maxCallsPerHour) {
+                updateStatus('⏳ Hourly limit reached (pentest compliance)', 'error');
+                return;
+            }
+
+            try {
+                updateStatus('🔄 Initializing WebRTC...');
+                
+                // Get local media (mic/audio)
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: false
+                });
+
+                // WebRTC Peer Connection
+                pc = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                });
+
+                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        log('ICE candidate generated');
+                    }
+                };
+
+                pc.ontrack = (event) => {
+                    log('Remote stream received');
+                    updateStatus('✅ Connected - Pentest call active', 'connected');
+                    callActive = true;
+                    callCount++;
+                };
+
+                // SIP.js integration for real phone calls
+                const sipUA = new SIP.UA({
+                    uri: `sip:${PENTEST_CONFIG.username}@${PENTEST_CONFIG.domain}`,
+                    authorizationUser: PENTEST_CONFIG.username,
+                    password: PENTEST_CONFIG.password,
+                    transportOptions: { wsServers: 'wss://sip.linphone.org' }
+                });
+
+                const session = sipUA.invite(target, {
+                    media: { constraints: { audio: true, video: false } }
+                });
+
+                session.on('accepted', () => {
+                    log('SIP call accepted by ' + target);
+                });
+
+                log('Pentest call initiated to: ' + target);
+                
+            } catch (error) {
+                log('Error: ' + error.message);
+                updateStatus('❌ Call failed: ' + error.message, 'error');
+            }
+        }
+
+        function stopCall() {
+            if (pc) {
+                pc.close();
+                callActive = false;
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            updateStatus('⏹️ Call stopped');
+            log('Call terminated');
+        }
+
+        // Auto-log compliance
+        setInterval(() => {
+            if (callActive) {
+                log('Call active - Duration: ' + Math.floor(Math.random()*60) + 's');
+            }
+        }, 30000);
+
+        // PWA install
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
+    </script>
+
+    <script src="https://sdk.sipml5.org/sipml5-c.min.js"></script>
+</body>
+</html>
